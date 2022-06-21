@@ -6,6 +6,7 @@ import (
 	"github.com/bloxapp/ssv/ibft"
 	"github.com/bloxapp/ssv/ibft/pipeline/auth"
 	"github.com/bloxapp/ssv/storage/collections"
+	"github.com/bloxapp/ssv/utils/format"
 	"github.com/bloxapp/ssv/utils/logex"
 	"github.com/bloxapp/ssv/validator/storage"
 	"github.com/pkg/errors"
@@ -41,7 +42,9 @@ func ProcessLateCommitMsg(msg *proto.SignedMessage, ibftStorage collections.Iibf
 			logger.Debug("duplicated signer")
 			return nil, nil
 		}
-		return nil, errors.Wrap(err, fmt.Sprintf("could not aggregate commit message. seq - %d, signers - %v", msg.Message.SeqNumber, msg.GetSignerIds()))
+
+		pk, _ := format.IdentifierUnformat(string(msg.Message.GetLambda()))
+		return nil, errors.Wrap(err, fmt.Sprintf("could not aggregate commit message. seq - %d, signers - %v, id - %s", msg.Message.SeqNumber, msg.GetSignerIds(), pk))
 	}
 	if err := ibftStorage.SaveDecided(decidedMsg); err != nil {
 		return nil, errors.Wrap(err, "could not save aggregated decided message")
