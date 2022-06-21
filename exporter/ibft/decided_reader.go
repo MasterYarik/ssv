@@ -166,36 +166,55 @@ func (r *decidedReader) onMessage(msg *proto.SignedMessage) {
 // handleNewDecidedMessage saves an incoming (valid) decided message
 func (r *decidedReader) handleNewDecidedMessage(msg *proto.SignedMessage) (bool, error) {
 	logger := r.logger.With(messageFields(msg)...)
-	if known, err := r.checkDecided(msg); known {
+	known, updatedMsg, err := r.checkDecided(msg)
+	if known {
 		logger.Debug("received known sequence")
 		return false, nil
 	} else if err != nil {
 		logger.Warn("could not check decided", zap.Error(err))
 		return false, err
 	}
-	if err := r.storage.SaveDecided(msg); err != nil {
+	if err := r.storage.SaveDecided(updatedMsg); err != nil {
 		return false, errors.Wrap(err, "could not save decided")
 	}
 	logger.Debug("decided saved")
-	ibft.ReportDecided(r.validatorShare.PublicKey.SerializeToHexStr(), msg)
-	go r.out.Send(newDecidedAPIMsg(msg, r.validatorShare.PublicKey.SerializeToHexStr()))
-	return true, r.checkHighestDecided(msg)
+	ibft.ReportDecided(r.validatorShare.PublicKey.SerializeToHexStr(), updatedMsg)
+	go r.out.Send(newDecidedAPIMsg(updatedMsg, r.validatorShare.PublicKey.SerializeToHexStr()))
+	return true, r.checkHighestDecided(updatedMsg)
 }
 
 // checkDecided check if the new decided message is a duplicate or should override existing message
-func (r *decidedReader) checkDecided(msg *proto.SignedMessage) (bool, error) {
-	decided, found, err := r.storage.GetDecided(r.identifier, msg.Message.SeqNumber)
+func (r *decidedReader) checkDecided(msg *proto.SignedMessage) (bool, *proto.SignedMessage, error) {
+	known, found, err := r.storage.GetDecided(r.identifier, msg.Message.SeqNumber)
 	if err != nil {
-		return false, err
+		return false, msg, err
 	}
 	if !found {
-		return false, nil
+		return false, msg, nil
 	}
 	// decided message should have at least 3 signers, so if the new decided has 4 signers -> override
-	if len(msg.SignerIds) > len(decided.SignerIds) {
-		return false, nil
+	if len(msg.SignerIds) > len(known.SignerIds) {
+		return false, msg, nil
 	}
-	return true, nil
+
+	var idsToAdd []uint64
+	m := map[uint64]bool{}
+	for _, id := range known.GetSignerIds() {
+		m[id] = true
+	}
+	for _, id := range msg.GetSignerIds() {
+		if !m[id] {
+			// new id. need to aggregate into known msg
+			idsToAdd = append(idsToAdd, id)
+		}
+	}
+	if len(idsToAdd) > 0 {
+		// new ids added, need to update decided
+		known.SignerIds = append(known.SignerIds, idsToAdd...)
+		return false, known, nil
+	}
+
+	return true, msg, nil
 }
 
 // checkHighestDecided check if highest decided should be updated
