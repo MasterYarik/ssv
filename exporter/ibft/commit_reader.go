@@ -12,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prysmaticlabs/prysm/async/event"
 	"go.uber.org/zap"
+	"time"
 )
 
 // CommitReaderOptions defines the required parameters to create an instance
@@ -62,6 +63,7 @@ func (cr *commitReader) Start() error {
 func (cr *commitReader) onMessage(msg *proto.SignedMessage) bool {
 	if err := auth.BasicMsgValidation().Run(msg); err != nil {
 		// received invalid msg
+		cr.logger.Error("failed to validate msg", zap.Error(err), zap.Any("msg", msg))
 		return false
 	}
 	// filtering irrelevant messages
@@ -69,6 +71,7 @@ func (cr *commitReader) onMessage(msg *proto.SignedMessage) bool {
 		return false
 	}
 	go func() {
+		time.Sleep(time.Second * 1)
 		if err := cr.onCommitMessage(msg); err != nil {
 			cr.logger.Debug("could not handle commit message", zap.String("err", err.Error()), zap.String("pk", string(msg.Message.Lambda)), zap.Uint64("seq", msg.Message.SeqNumber))
 		}
