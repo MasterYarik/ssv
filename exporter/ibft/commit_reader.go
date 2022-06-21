@@ -70,7 +70,7 @@ func (cr *commitReader) onMessage(msg *proto.SignedMessage) bool {
 	}
 	go func() {
 		if err := cr.onCommitMessage(msg); err != nil {
-			cr.logger.Debug("could not handle commit message", zap.String("err", err.Error()))
+			cr.logger.Debug("could not handle commit message", zap.String("err", err.Error()), zap.String("pk", string(msg.Message.Lambda)), zap.Uint64("seq", msg.Message.SeqNumber))
 		}
 	}()
 	return true
