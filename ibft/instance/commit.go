@@ -2,6 +2,7 @@ package ibft
 
 import (
 	"encoding/hex"
+	"fmt"
 	"github.com/bloxapp/ssv/ibft"
 	"github.com/bloxapp/ssv/ibft/pipeline/auth"
 	"github.com/bloxapp/ssv/storage/collections"
@@ -40,7 +41,7 @@ func ProcessLateCommitMsg(msg *proto.SignedMessage, ibftStorage collections.Iibf
 			logger.Debug("duplicated signer")
 			return nil, nil
 		}
-		return nil, errors.Wrap(err, "could not aggregate commit message")
+		return nil, errors.Wrap(err, fmt.Sprintf("could not aggregate commit message. seq - %d, signers - %v", msg.Message.SeqNumber, msg.GetSignerIds()))
 	}
 	if err := ibftStorage.SaveDecided(decidedMsg); err != nil {
 		return nil, errors.Wrap(err, "could not save aggregated decided message")
