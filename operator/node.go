@@ -132,6 +132,23 @@ func (n *operatorNode) Start() error {
 		}
 	}()
 
+	// WORKAROUND for fork v1, to support exporter scenario
+	// TODO: remove post fork v2
+	if n.ws != nil {
+		go func() {
+			shares, err := n.validatorsCtrl.GetAllValidatorShares()
+			if err != nil {
+				n.logger.Warn("could not read all shares", zap.Error(err))
+				return
+			}
+			for _, share := range shares {
+				if err := n.net.Subscribe(share.PublicKey.Serialize()); err != nil {
+					n.logger.Warn("could not subscribe to validator topic", zap.Error(err))
+				}
+			}
+		}()
+	}
+
 	n.validatorsCtrl.StartValidators()
 	n.validatorsCtrl.StartNetworkHandlers()
 	go n.validatorsCtrl.UpdateValidatorMetaDataLoop()
