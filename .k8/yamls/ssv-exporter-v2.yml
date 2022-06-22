@@ -178,6 +178,10 @@ spec:
             value: "false"
           - name: SUBNETS
             value: '0xffffffffffffffffffffffffffffffff'
+          - name: NUM_OF_INSTANCES
+            value: "2"
+          - name: INSTANCE_ID
+            value: "1"
         volumeMounts:
         - mountPath: /data
           name: ssv-exporter-v2

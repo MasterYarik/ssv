@@ -3,6 +3,7 @@ package operator
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -49,6 +50,9 @@ type Options struct {
 
 	WS        api.WebSocketServer
 	WsAPIPort int
+
+	NumOfInstances int `yaml:"NumOfInstances" env:"NUM_OF_INSTANCES" env-default:"1" env-description:"number of existing exporter instances"`
+	InstanceID     int `yaml:"InstanceID" env:"INSTANCE_ID" env-default:"0" env-description:"current instance ID"`
 }
 
 // operatorNode implements Node interface
@@ -69,6 +73,9 @@ type operatorNode struct {
 
 	ws        api.WebSocketServer
 	wsAPIPort int
+	// TODO: remove in fork v1
+	numOfInstances int
+	instanceID     int
 }
 
 // New is the constructor of operatorNode
@@ -100,8 +107,10 @@ func New(opts Options) Node {
 
 		forkVersion: opts.ForkVersion,
 
-		ws:        opts.WS,
-		wsAPIPort: opts.WsAPIPort,
+		ws:             opts.WS,
+		wsAPIPort:      opts.WsAPIPort,
+		instanceID:     opts.InstanceID,
+		numOfInstances: opts.NumOfInstances,
 	}
 
 	if err := node.init(opts); err != nil {
@@ -142,6 +151,9 @@ func (n *operatorNode) Start() error {
 				return
 			}
 			for _, share := range shares {
+				if !n.shouldProcessValidator(share.PublicKey.SerializeToHexStr()) {
+					continue
+				}
 				if err := n.net.Subscribe(share.PublicKey.Serialize()); err != nil {
 					n.logger.Warn("could not subscribe to validator topic", zap.Error(err))
 				}
@@ -163,6 +175,27 @@ func (n *operatorNode) listenForCurrentSlot() {
 	for slot := range n.dutyCtrl.CurrentSlotChan() {
 		n.setFork(slot)
 	}
+}
+
+// TODO: remove in fork v1
+func (n *operatorNode) shouldProcessValidator(pubkey string) bool {
+	val := hexToUint64(pubkey[:10])
+	instance := val % uint64(n.numOfInstances)
+	n.logger.Debug("check validator",
+		zap.Uint64("mod", instance),
+		zap.Uint64("val", val),
+		zap.Uint64("instanceID", uint64(n.instanceID)),
+		zap.String("pubkey", pubkey),
+		zap.Int("numOfInstances", n.numOfInstances))
+	return instance == uint64(n.instanceID)
+}
+
+func hexToUint64(hexStr string) uint64 {
+	result, err := strconv.ParseUint(hexStr, 16, 64)
+	if err != nil {
+		return uint64(0)
+	}
+	return result
 }
 
 // StartEth1 starts the eth1 events sync and streaming
