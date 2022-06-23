@@ -39,6 +39,7 @@ func (c *Controller) ValidateDecidedMsg(msg *message.SignedMessage) error {
 	return c.fork.ValidateDecidedMsg(c.ValidatorShare).Run(msg)
 }
 
+
 // processDecidedMessage is responsible for processing an incoming decided message.
 // we will process decided messages according to the following rules:
 // 1. invalid > exit
